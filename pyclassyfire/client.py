@@ -60,6 +60,40 @@ def iupac_query(compound, label='pyclassyfire'):
     r.raise_for_status()
     return r.json()['id']
 
+def get_results_pma(query_id, return_format="json"):
+    
+    
+    r = requests.get('%s/queries/%s.%s' % (url, query_id, return_format),
+                     headers={"Content-Type": "application/%s" % return_format})
+    r.raise_for_status()
+    
+    result = json.loads(r.text)
+    
+    num_pages = result["number_of_pages"]
+    
+    requests_list = []
+    jsoned_requests = [] 
+    
+    for i in range(1, num_pages + 1):
+        
+        
+        requests_list.append(requests.get('%s/queries/%s.%s?page=%s' % (url, query_id, return_format, i),
+                         headers={"Content-Type": "application/%s" % return_format}))
+        
+        i += 1
+        
+        
+    for jsonObj in requests_list:
+        requests_dict = json.loads(jsonObj.text)
+        jsoned_requests.append(requests_dict)
+
+    
+    for j in range(1, len(jsoned_requests)):
+        jsoned_requests[0]['entities'].extend(jsoned_requests[j]['entities'])
+        
+    
+    return jsoned_requests[0]
+    
 
 def get_results(query_id, return_format="json"):
     """Given a query_id, fetch the classification results.
