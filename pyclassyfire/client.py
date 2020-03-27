@@ -93,7 +93,7 @@ def get_results_pma(query_id, return_format="json"):
         
     
     return jsoned_requests[0]
-    
+
 
 def get_results(query_id, return_format="json"):
     """Given a query_id, fetch the classification results.
@@ -222,6 +222,79 @@ def tabular_query(inpath, structure_key, dialect='excel', outpath=None,
                 time.sleep(sleep_interval)
     infile.close()
 
+def tabular_query_pma(inpath, structure_key, dialect='excel', outpath=None,
+                  outfields=('taxonomy', 'description', 'substituents')):
+    """Given a path to a compound set in tabular form (comma or tab delimited)
+     annotate all compounds and write results to an expanded table.
+    
+    :param inpath: path to compound file to be annotated
+    :type inpath: str
+    :param structure_key: column heading which contains the compounds InChIKey
+         or SMILES
+    :type structure_key: str
+    :param dialect: dialect for parsing table (generally 'excel' for csv,
+         'excel-tab' for tsv)
+    :type dialect: str
+    :param outpath: Path to desired output location
+    :type outpath: str
+    :param outfields: Fields to append to table from ClassyFire output
+    :type outfields: tuple(string)
+    
+    >>> tabular_query('/tabulated_data.tsv', 'structure', 'excel-tab')
+    
+    """
+    tax_fields = ('kingdom', 'superclass', 'class', 'subclass')
+    query_ids = []
+    infile = open(inpath, 'r', newline=None)
+    if not outpath:
+        outpath = _prevent_overwrite(inpath)
+    comps = []
+    for line in csv.DictReader(infile, dialect=dialect):
+        comps.append(line[structure_key])
+        if not len(comps) % chunk_size:
+            query_ids.append(structure_query('\\n'.join(comps)))
+            comps = []
+    if comps:
+        query_ids.append(structure_query('\\n'.join(comps)))
+    print('%s queries submitted to ClassyFire API' % len(query_ids))
+    i = 0
+    infile.seek(0)
+    with open(outpath, 'w') as outfile:
+        reader = csv.DictReader(infile, dialect=dialect)
+        writer = csv.DictWriter(outfile, reader.fieldnames+list(outfields),
+                                dialect=dialect)
+        writer.writeheader()
+        while i < len(query_ids):
+            result = get_results_pma(query_ids[i])
+            if result["classification_status"] == "Done":
+                for j, line in enumerate(reader):
+                    print(j, i)
+                    print(line['smiles'])
+                    #print(result['entities'][0]['identifier'])
+                    print(str(j+1))
+                    #print(str(int(result['entities'][0]['identifier'].split('-')[1]) + chunk_size * i - 1))
+                    #print(str(int(result['entities'][0]['identifier'].split('-')[1]) + chunk_size * i))
+                    #print(result['entities'][0]['identifier'].split('-')[1])
+                    if result['entities'] and str(j+1) == result['entities'][0]['identifier'].split('-')[1]:
+                    #if result['entities'] and str(j+1) == str(int(result['entities'][0]['identifier'].split('-')[1]) + chunk_size * i):
+                        hit = result['entities'].pop(0)
+                        if 'taxonomy' in outfields:
+                            hit['taxonomy'] = ";".join(
+                                ['%s:%s' % (hit[x]['name'], hit[x]['chemont_id'])
+                                 for x in tax_fields if hit[x]])
+                        for field in outfields:
+                            if isinstance(hit[field], list):
+                                line[field] = ';'.join(hit[field])
+                            else:
+                                line[field] = hit[field]
+                        writer.writerow(line)
+                    else:
+                        continue
+                        i += 1
+            else:
+                print("%s percent complete" % round(i/len(query_ids)*100))
+                time.sleep(sleep_interval)
+    infile.close()
 
 def sdf_query(inpath, outpath=None):
     """Given a path to a compound set in a sdf file, annotate all compounds
