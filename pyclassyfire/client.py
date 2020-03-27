@@ -60,7 +60,7 @@ def iupac_query(compound, label='pyclassyfire'):
     r.raise_for_status()
     return r.json()['id']
 
-def get_results_pma(query_id, return_format="json"):
+def get_results_multipage(query_id, return_format="json"):
     
     
     r = requests.get('%s/queries/%s.%s' % (url, query_id, return_format),
@@ -222,7 +222,7 @@ def tabular_query(inpath, structure_key, dialect='excel', outpath=None,
                 time.sleep(sleep_interval)
     infile.close()
 
-def tabular_query_pma(inpath, structure_key, dialect='excel', outpath=None,
+def tabular_query_multipage(inpath, structure_key, dialect='excel', outpath=None,
                   outfields=('taxonomy', 'description', 'substituents')):
     """Given a path to a compound set in tabular form (comma or tab delimited)
      annotate all compounds and write results to an expanded table.
@@ -265,7 +265,7 @@ def tabular_query_pma(inpath, structure_key, dialect='excel', outpath=None,
                                 dialect=dialect)
         writer.writeheader()
         while i < len(query_ids):
-            result = get_results_pma(query_ids[i])
+            result = get_results_multipage(query_ids[i])
             if result["classification_status"] == "Done":
                 for j, line in enumerate(reader):
                     print(j, i)
